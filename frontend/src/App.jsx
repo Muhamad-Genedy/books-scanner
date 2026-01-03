@@ -3,7 +3,7 @@ import ConfigForm from './components/ConfigForm';
 import Dashboard from './components/Dashboard';
 import { Activity, BookOpen, AlertCircle } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api'; // Use relative path in prod, but localhost for dev if CORS enabled.
+const API_BASE = '/api'; // Relative path for production and dev (via proxy)
 // Best practice is / api proxy in Vite, but let's assume relative for built version or explicit for dev.
 // Actually, since I'm running backend on 8000 and frontend on 5173, I need full URL or proxy.
 // I'll use a constant for now that defaults to empty string if valid, or localhost:8000.
@@ -16,7 +16,7 @@ function App() {
     useEffect(() => {
         const checkStatus = async () => {
             try {
-                const res = await fetch('http://localhost:8000/api/status');
+                const res = await fetch(`${API_BASE}/status`);
                 const data = await res.json();
 
                 // Map backend status to frontend state
@@ -43,7 +43,7 @@ function App() {
 
     const handleStart = async (config) => {
         try {
-            const res = await fetch('http://localhost:8000/api/start', {
+            const res = await fetch(`${API_BASE}/start`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -63,7 +63,7 @@ function App() {
 
     const handleStop = async () => {
         try {
-            await fetch('http://localhost:8000/api/stop', { method: 'POST' });
+            await fetch(`${API_BASE}/stop`, { method: 'POST' });
         } catch (e) {
             console.error(e);
         }
@@ -71,7 +71,7 @@ function App() {
 
     const handleBack = async () => {
         try {
-            await fetch('http://localhost:8000/api/reset', { method: 'POST' });
+            await fetch(`${API_BASE}/reset`, { method: 'POST' });
             setView('CONFIG');
         } catch (e) {
             console.error(e);

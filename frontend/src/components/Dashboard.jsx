@@ -71,7 +71,7 @@ export default function Dashboard({ status, onStop, onBack }) {
                                 Start New Job
                             </button>
                             <a
-                                href="http://localhost:8000/api/download"
+                                href="/api/download"
                                 target="_blank"
                                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium shadow-sm transition-colors"
                             >

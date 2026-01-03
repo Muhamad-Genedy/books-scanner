@@ -5,7 +5,7 @@ export default function LogViewer() {
     const bottomRef = useRef(null);
 
     useEffect(() => {
-        const evtSource = new EventSource('http://localhost:8000/api/logs/stream');
+        const evtSource = new EventSource('/api/logs/stream');
 
         evtSource.onmessage = (e) => {
             setLogs(prev => [...prev.slice(-499), e.data]); // Keep last 500
