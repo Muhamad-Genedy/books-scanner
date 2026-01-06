@@ -7,6 +7,7 @@ import math
 import shutil
 import datetime
 import threading
+import re
 
 # Third-party imports
 import fitz  # PyMuPDF
@@ -20,7 +21,7 @@ from google.auth.transport.requests import Request
 # ==========================================
 # CONFIGURATION
 # ==========================================
-OUTPUT_FILE = 'books.json'
+# OUTPUT_FILE is now dynamic
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
 # ==========================================
@@ -33,14 +34,22 @@ def log_message(log_callback, message, level="INFO"):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         log_callback(f"[{timestamp}] [{level}] {message}")
 
-def load_processed_ids():
+def sanitize_filename(name):
+    """Sanitizes a string to be safe for filenames."""
+    # Remove invalid characters
+    name = re.sub(r'[<>:"/\\|?*]', '', name)
+    # Strip whitespace
+    name = name.strip()
+    return name or "scan_output"
+
+def load_processed_ids(output_file):
     """Reads the existing JSON file and returns a set of processed drive_file_ids."""
-    if not os.path.exists(OUTPUT_FILE):
+    if not os.path.exists(output_file):
         return set()
     
     processed_ids = set()
     try:
-        with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
+        with open(output_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
             if isinstance(data, list):
                 for item in data:
@@ -53,18 +62,23 @@ def load_processed_ids():
     
     return processed_ids
 
-def append_record(record):
+def append_record(record, output_file):
     """
     Appends a single record to the JSON array in the output file.
     """
     json_record = json.dumps(record, ensure_ascii=False, indent=4)
     
     try:
-        if not os.path.exists(OUTPUT_FILE) or os.path.getsize(OUTPUT_FILE) == 0:
-            with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        # Check if file exists and has content
+        file_exists = os.path.exists(output_file) and os.path.getsize(output_file) > 0
+        
+        if not file_exists:
+            # Create new file
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(f"[\n{json_record}\n]")
         else:
-            with open(OUTPUT_FILE, 'rb+') as f:
+            # Append to existing file
+            with open(output_file, 'rb+') as f:
                 f.seek(0, os.SEEK_END)
                 pos = f.tell() - 1
                 while pos >= 0:
@@ -145,7 +159,7 @@ def process_pdf(pdf_path, file_id, drive_file_name, log_callback):
         log_message(log_callback, f"Error processing PDF {drive_file_name}: {e}", "ERROR")
         return None
 
-def process_level(service, parent_id, current_level, context_data, processed_ids, log_callback, progress_callback, stop_event, config):
+def process_level(service, parent_id, current_level, context_data, processed_ids, log_callback, progress_callback, stop_event, config, output_file):
     if stop_event.is_set():
         return
 
@@ -212,11 +226,11 @@ def process_level(service, parent_id, current_level, context_data, processed_ids
                                         "academic_year_id": config.get('academic_year_id', 'Direct'),
                                         "term_id": config.get('term_id', 'Direct'),
                                         "subject_id": config.get('subject_id', 'Direct'),
-                                        "book_type_id": "Direct",
+                                        "book_type_id": config.get('book_type_id', 'Direct'),
                                         "release_year": config.get('release_year', 'Direct'),
                                         **meta
                                     }
-                                    append_record(record)
+                                    append_record(record, output_file)
                                     processed_ids.add(pdf_id)
                                     log_message(log_callback, f"Finished: {pdf_name}", "SUCCESS")
                                     progress_callback(processed=1)
@@ -267,11 +281,11 @@ def process_level(service, parent_id, current_level, context_data, processed_ids
                                             "academic_year_id": config.get('academic_year_id', 'Direct'),
                                             "term_id": config.get('term_id', 'Direct'),
                                             "subject_id": config.get('subject_id', 'Direct'),
-                                            "book_type_id": "Direct",
+                                            "book_type_id": config.get('book_type_id', 'Direct'),
                                             "release_year": config.get('release_year', 'Direct'),
                                             **meta
                                         }
-                                        append_record(record)
+                                        append_record(record, output_file)
                                         processed_ids.add(pdf_id)
                                         log_message(log_callback, f"Finished: {pdf_name}", "SUCCESS")
                                         progress_callback(processed=1)
@@ -314,7 +328,7 @@ def process_level(service, parent_id, current_level, context_data, processed_ids
                     id_keys = ['academic_year_id', 'term_id', 'subject_id', 'book_type_id', 'release_year']
                     new_context[id_keys[current_level]] = item_name
                     
-                    process_level(service, item_id, current_level + 1, new_context, processed_ids, log_callback, progress_callback, stop_event, config)
+                    process_level(service, item_id, current_level + 1, new_context, processed_ids, log_callback, progress_callback, stop_event, config, output_file)
                     
                 else:
                     # File Processing
@@ -338,7 +352,9 @@ def process_level(service, parent_id, current_level, context_data, processed_ids
                                 **new_context,
                                 **meta
                             }
-                            append_record(record)
+                            # Ensure we don't overwrite if manual config said "Direct" but we are deep scanning?
+                            # Actually recursive scan overwrites keys from folder names, which is desired.
+                            append_record(record, output_file)
                             processed_ids.add(item_id)
                             log_message(log_callback, f"Finished: {item_name}", "SUCCESS")
                             progress_callback(processed=1)
@@ -358,7 +374,7 @@ def process_level(service, parent_id, current_level, context_data, processed_ids
             log_message(log_callback, f"Level {current_level} error: {e}", "ERROR")
             break
 
-def start_scan_job(config, log_callback, progress_callback, stop_event):
+def start_scan_job(config, log_callback, progress_callback, stop_event, set_meta_info_callback=None):
     """
     Entry point for the background thread.
     """
@@ -377,19 +393,41 @@ def start_scan_job(config, log_callback, progress_callback, stop_event):
         return
 
     # Setup Google Drive
+    service = None
     try:
         service = get_drive_service(config.get('service_account_json'))
         log_message(log_callback, "Google Drive Authenticated.", "SUCCESS")
     except Exception as e:
         log_message(log_callback, f"Google Drive Auth Error: {e}", "CRITICAL")
         return
+    
+    # Determine Folder Name and Output File
+    root_id = config.get('drive_root_id') or 'root'
+    folder_name = "root"
+    output_filename = "books.json"
 
-    processed_ids = load_processed_ids()
+    try:
+        if root_id != 'root':
+            folder_meta = service.files().get(fileId=root_id, fields="name").execute()
+            folder_name = folder_meta.get('name', 'unknown_folder')
+        
+        # Sanitize folder name for filename
+        safe_name = sanitize_filename(folder_name)
+        output_filename = f"{safe_name}.json"
+        
+        if set_meta_info_callback:
+            set_meta_info_callback(output_filename, folder_name)
+            
+        log_message(log_callback, f"Target Folder: {folder_name}", "INFO")
+        log_message(log_callback, f"Output File: {output_filename}", "INFO")
+        
+    except Exception as e:
+        log_message(log_callback, f"Error fetching folder info: {e}", "ERROR")
+        return
+
+    processed_ids = load_processed_ids(output_filename)
     log_message(log_callback, f"Loaded {len(processed_ids)} previously processed files.", "INFO")
     
-    root_id = config.get('drive_root_id') or 'root'
-    log_message(log_callback, f"Scanning from root ID: {root_id}", "INFO")
-    
-    process_level(service, root_id, 0, {}, processed_ids, log_callback, progress_callback, stop_event, config)
+    process_level(service, root_id, 0, {}, processed_ids, log_callback, progress_callback, stop_event, config, output_filename)
     
     log_message(log_callback, "Scan job finished.", "SUCCESS")

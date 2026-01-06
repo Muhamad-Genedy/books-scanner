@@ -10,6 +10,7 @@ export default function ConfigForm({ onStart }) {
     const [academicYear, setAcademicYear] = useState('');
     const [term, setTerm] = useState('');
     const [subject, setSubject] = useState('');
+    const [bookType, setBookType] = useState('');
     const [releaseYear, setReleaseYear] = useState('');
     const [error, setError] = useState(null);
 
@@ -20,11 +21,24 @@ export default function ConfigForm({ onStart }) {
             const savedCloudName = localStorage.getItem('scanner_cloudinary_cloud_name');
             const savedApiKey = localStorage.getItem('scanner_cloudinary_api_key');
             const savedApiSecret = localStorage.getItem('scanner_cloudinary_api_secret');
+            const savedRootId = localStorage.getItem('scanner_root_id');
+            const savedAcademicYear = localStorage.getItem('scanner_academic_year');
+            const savedTerm = localStorage.getItem('scanner_term');
+            const savedSubject = localStorage.getItem('scanner_subject');
+            const savedBookType = localStorage.getItem('scanner_book_type');
+            const savedReleaseYear = localStorage.getItem('scanner_release_year');
 
             if (savedJson) setJson(savedJson);
             if (savedCloudName) setCloudName(savedCloudName);
             if (savedApiKey) setApiKey(savedApiKey);
             if (savedApiSecret) setApiSecret(savedApiSecret);
+            if (savedRootId) setRootId(savedRootId);
+            if (savedAcademicYear) setAcademicYear(savedAcademicYear);
+            if (savedTerm) setTerm(savedTerm);
+            if (savedSubject) setSubject(savedSubject);
+            if (savedBookType) setBookType(savedBookType);
+            if (savedReleaseYear) setReleaseYear(savedReleaseYear);
+
         } catch (e) {
             console.error('Failed to load saved credentials:', e);
         }
@@ -53,6 +67,12 @@ export default function ConfigForm({ onStart }) {
             localStorage.setItem('scanner_cloudinary_cloud_name', cloudName);
             localStorage.setItem('scanner_cloudinary_api_key', apiKey);
             localStorage.setItem('scanner_cloudinary_api_secret', apiSecret);
+            localStorage.setItem('scanner_root_id', rootId);
+            localStorage.setItem('scanner_academic_year', academicYear);
+            localStorage.setItem('scanner_term', term);
+            localStorage.setItem('scanner_subject', subject);
+            localStorage.setItem('scanner_book_type', bookType);
+            localStorage.setItem('scanner_release_year', releaseYear);
         } catch (e) {
             console.error('Failed to save credentials:', e);
         }
@@ -66,6 +86,7 @@ export default function ConfigForm({ onStart }) {
             academic_year_id: academicYear || 'Direct',
             term_id: term || 'Direct',
             subject_id: subject || 'Direct',
+            book_type_id: bookType || 'Direct',
             release_year: releaseYear || 'Direct'
         });
     };
@@ -149,7 +170,7 @@ export default function ConfigForm({ onStart }) {
                     <div className="border-t border-gray-200 pt-4">
                         <h3 className="text-sm font-semibold text-gray-700 mb-3">Metadata (Optional)</h3>
                         <p className="text-xs text-gray-500 mb-4">Leave empty to use "Direct" as default value</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <label className="block">
                                 <span className="text-sm font-medium text-gray-700 mb-2 block">Academic Year</span>
                                 <input
@@ -178,6 +199,16 @@ export default function ConfigForm({ onStart }) {
                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
                                     value={subject}
                                     onChange={e => setSubject(e.target.value)}
+                                />
+                            </label>
+                            <label className="block">
+                                <span className="text-sm font-medium text-gray-700 mb-2 block">Book Type</span>
+                                <input
+                                    type="text"
+                                    placeholder="e.g., Student Book"
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                                    value={bookType}
+                                    onChange={e => setBookType(e.target.value)}
                                 />
                             </label>
                             <label className="block">

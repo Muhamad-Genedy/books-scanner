@@ -3,6 +3,7 @@ import time
 from collections import deque
 from enum import Enum
 from . import scanner
+from .history import history_manager
 
 class JobStatus(str, Enum):
     IDLE = "IDLE"
@@ -35,6 +36,8 @@ class JobManager:
         self.stop_event = threading.Event()
         self.thread = None
         self.active_config = None
+        self.output_filename = None
+        self.folder_name = None
 
     def add_log(self, message):
         self.logs.append(message)
@@ -57,12 +60,26 @@ class JobManager:
 
         def run():
             try:
+                # scanner.start_scan_job returns a dict with 'output_file', 'folder_name' if available
+                # We need to update scanner.py to return this info or set it on the manager reference?
+                # Best to have start_scan_job return userful info or accept a callback to set it.
+                # Let's assume start_scan_job returns nothing but we can extract info if we pass a callback,
+                # OR we modify start_scan_job to return the context.
+                # Since it runs in a thread, return values are lost.
+                # We will pass a callback to set meta info.
+                
+                def set_meta_info(filename, folder):
+                    self.output_filename = filename
+                    self.folder_name = folder
+
                 scanner.start_scan_job(
                     config,
                     self.add_log,
                     self.update_progress,
-                    self.stop_event
+                    self.stop_event,
+                    set_meta_info
                 )
+                
                 if self.stop_event.is_set():
                     self.status = JobStatus.STOPPED
                     self.add_log("[SYSTEM] Job stopped by user.")
@@ -74,6 +91,7 @@ class JobManager:
                 self.add_log(f"[SYSTEM] Job failed: {e}")
             finally:
                 self.end_time = time.time()
+                self._record_history()
 
         self.thread = threading.Thread(target=run, daemon=True)
         self.thread.start()
@@ -85,6 +103,18 @@ class JobManager:
             return True, "Stopping job..."
         return False, "No job running"
 
+    def _record_history(self):
+        elapsed = int(self.end_time - self.start_time) if self.start_time and self.end_time else 0
+        entry = {
+            "status": self.status,
+            "stats": self.counters,
+            "elapsed_seconds": elapsed,
+            "config": self.active_config,
+            "output_file": self.output_filename,
+            "folder_name": self.folder_name
+        }
+        history_manager.add_entry(entry)
+
     def get_status(self):
         elapsed = 0
         if self.start_time:
@@ -95,7 +125,8 @@ class JobManager:
             "status": self.status,
             "counters": self.counters,
             "elapsed_seconds": elapsed,
-            "current_logs": list(self.logs)[-50:] # Return last 50 for polling, or separate API for full stream
+            "current_logs": list(self.logs)[-50:], # Return last 50 for polling, or separate API for full stream
+            "output_file": self.output_filename
         }
 
 job_manager = JobManager()

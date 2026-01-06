@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import LogViewer from './LogViewer';
-import { Files, XCircle, CheckCircle, Clock, Download, StopCircle } from 'lucide-react';
+import HistoryModal from './HistoryModal';
+import { Files, XCircle, CheckCircle, Clock, Download, StopCircle, History } from 'lucide-react';
 
 export default function Dashboard({ status, onStop, onBack }) {
-    const { state, counters, elapsed } = status;
+    const { state, counters, elapsed, output_file } = status;
+    const [showHistory, setShowHistory] = useState(false);
 
     const isRunning = state === 'RUNNING';
     const isDone = state === 'COMPLETED' || state === 'STOPPED' || state === 'ERROR';
@@ -53,6 +55,13 @@ export default function Dashboard({ status, onStop, onBack }) {
                 </div>
 
                 <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowHistory(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 font-medium transition-colors"
+                    >
+                        <History size={18} /> Operation Log
+                    </button>
+
                     {isRunning && (
                         <button
                             onClick={onStop}
@@ -70,13 +79,15 @@ export default function Dashboard({ status, onStop, onBack }) {
                             >
                                 Start New Job
                             </button>
-                            <a
-                                href="/api/download"
-                                target="_blank"
-                                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium shadow-sm transition-colors"
-                            >
-                                <Download size={18} /> Download JSON
-                            </a>
+                            {output_file && (
+                                <a
+                                    href={`/api/download?filename=${encodeURIComponent(output_file)}`}
+                                    target="_blank"
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium shadow-sm transition-colors"
+                                >
+                                    <Download size={18} /> Download JSON
+                                </a>
+                            )}
                         </>
                     )}
                 </div>
@@ -89,6 +100,8 @@ export default function Dashboard({ status, onStop, onBack }) {
                 </div>
                 <LogViewer />
             </div>
+
+            <HistoryModal isOpen={showHistory} onClose={() => setShowHistory(false)} />
         </div>
     );
 }
